@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// v1.3: 2026-09-09 security hardening — manifest rows are untrusted input: reject entries escaping the project root (path traversal), sanitize cells before write/print (row injection / terminal escapes), backup + atomic replace on refresh, size gate before reading headers
 // v1.2: 2026-09-02 added .mjs to the whitelist (user projects exist with .mjs scripts that need registration); v1.1: fix — re-read version comment on drift refresh (commented version column only updated after the comment was added) + [version] stat follows refresh + version regex compatible with v2/v2.3 (no-decimal shapes)
 // check-scripts-manifest.js — project script manifest validator (jixu step-5 / script update check)
 // Usage: node check-scripts-manifest.js <absolute project root path> [--init]
@@ -29,12 +30,23 @@ if (!root || !fs.existsSync(root)) {
 
 // —— utilities ——
 const rel = p => path.relative(root, p).replace(/\\/g, '/');
+const rootAbs = path.resolve(root);
+// v1.3: a manifest is just a file in the project root — anyone can write it. Never trust its rows.
+function inRoot(r) {
+  if (!r || r.includes('\0') || path.isAbsolute(r)) return false;
+  const relToRoot = path.relative(rootAbs, path.resolve(root, r));
+  return relToRoot === '' || (!relToRoot.startsWith('..') && !path.isAbsolute(relToRoot));
+}
+// v1.3: cells may contain '|' / newlines / control chars — neutralize before writing or printing
+const clean = s => String(s).replace(/[|\r\n\x00-\x1f\x7f]/g, ' ').trim();
+const show = s => String(s).replace(/[\x00-\x1f\x7f]/g, '?');
 function mtimeIso(p) {
   try { return new Date(fs.statSync(p).mtimeMs).toISOString().replace(/\.\d{3}Z$/, 'Z'); } catch (e) { return null; }
 }
 function readVersion(p) {
   // find a version comment within the first 10 lines of a script header: v1.2.3 / version:xxx
   try {
+    if (fs.statSync(p).size > 1024 * 1024) return '(file too large)'; // v1.3: don't bulk-read huge files just to peek at the header
     const head = fs.readFileSync(p, 'utf8').split('\n').slice(0, 10).join('\n');
     const m = head.match(/(?:^|\s)(v\d+\.?\d*|v?\d+\.\d+(?:\.\d+)?)(?:[:(\s])/) || head.match(/(?:^|\s)version[:]\s*(\S+)/);
     return m ? m[0].trim() : '(no version comment)';
@@ -60,6 +72,7 @@ function scanScripts() {
   return out;
 }
 // parse the manifest
+const invalidRows = []; // v1.3: rows rejected by the path gate, reported but never read/written
 function parseManifest(mf) {
   const rows = [];
   try {
@@ -69,6 +82,7 @@ function parseManifest(mf) {
       const cells = t.split('|').map(c => c.trim()).filter((c, i, a) => !(i === 0 && c === '') && !(i === a.length - 1 && c === ''));
       // only 4-column rows (first header row skipped)
       if (cells.length === 4 && cells[0] !== 'relative path' && cells[0] !== '---') {
+        if (!inRoot(cells[0])) { invalidRows.push(cells[0]); continue; } // v1.3: reject traversal/absolute entries
         rows.push({ rel: cells[0], version: cells[1], mtime: cells[2], loggedAt: cells[3] });
       }
     }
@@ -85,7 +99,9 @@ if (!hasManifest) {
     const lines = ['# scripts-manifest.md — project script manifest (auto-maintained by jixu)', '# Format: | relative path | version comment | registered mtime (UTC) | registered at (UTC) |', '| relative path | version comment | registered mtime (UTC) | registered at (UTC) |'];
     const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
     for (const s of scripts) {
-      lines.push(`| ${rel(s)} | ${readVersion(s)} | ${mtimeIso(s)} | ${now} |`);
+      const r = rel(s);
+      if (/[\r\n|\x00-\x1f]/.test(r)) { console.log(`[warn] skipped suspicious filename (not registered): ${show(r)}`); continue; } // v1.3: a filename containing newlines/'|' can inject manifest rows
+      lines.push(`| ${clean(r)} | ${clean(readVersion(s))} | ${mtimeIso(s)} | ${now} |`);
     }
     fs.writeFileSync(manifestPath, lines.join('\n') + '\n', 'utf8');
     console.log(`[init] manifest generated: ${manifestPath} (${scripts.length} scripts)`);
@@ -123,24 +139,30 @@ if (report.drifted.length) {
     if (cells.length !== 4 || cells[0] === 'relative path') return l;
     const cellRel = cells[0];
     const d = report.drifted.find(x => x.rel === cellRel);
-    if (d) {
+    if (d && inRoot(cellRel)) { // v1.3: second gate before any read (defense in depth)
       changed = true;
       // re-read the version comment on refresh (it is also part of the disk state; otherwise a newly-added comment never updates the version column)
-      return `| ${cellRel} | ${readVersion(path.join(root, cellRel))} | ${d.actual} | ${now} |`;
+      return `| ${clean(cellRel)} | ${clean(readVersion(path.join(root, cellRel)))} | ${d.actual} | ${now} |`;
     }
     return l;
   });
-  fs.writeFileSync(manifestPath, updated.join('\n'), 'utf8');
+  // v1.3: backup + atomic replace — no truncated manifest if the process dies mid-write, no silent loss of hand-edits
+  fs.copyFileSync(manifestPath, manifestPath + '.bak');
+  const tmp = manifestPath + '.tmp';
+  fs.writeFileSync(tmp, updated.join('\n'), 'utf8');
+  fs.renameSync(tmp, manifestPath);
 }
 
 console.log('=== Script Manifest Validation Report ===');
 console.log(`Manifest: ${rel(manifestPath)} | registered ${rows.length} entries | ${disk.size} scripts on disk`);
 console.log(`[drift] drifted (auto-refreshed to the current disk state): ${report.drifted.length} entries`);
-for (const d of report.drifted) console.log(`  · ${d.rel} (registered=${d.expect} → disk=${d.actual})`);
+for (const d of report.drifted) console.log(`  · ${show(d.rel)} (registered=${d.expect} → disk=${d.actual})`);
 console.log(`[missing] registered but missing on disk: ${report.missing.length} entries (awaiting user confirmation, entries kept)`);
-for (const m of report.missing) console.log(`  · ${m}`);
+for (const m of report.missing) console.log(`  · ${show(m)}`);
+console.log(`[invalid] rejected rows (path escaping the project root — not read, not written): ${invalidRows.length} entries`);
+for (const i of invalidRows) console.log(`  · ${show(i)}`);
 console.log(`[unregistered] on disk but not registered: ${report.unregistered.length} entries`);
-for (const u of report.unregistered) console.log(`  · ${u}`);
+for (const u of report.unregistered) console.log(`  · ${show(u)}`);
 const finalRows = changed ? parseManifest(manifestPath) : rows;
 const noVer = finalRows.filter(r => r.version === '(no version comment)').length;
 console.log(`[version] no version comment in header: ${noVer}/${rows.length} entries (recommend adding a # vX.Y comment to core scripts to prevent old scripts running new requirements)`);

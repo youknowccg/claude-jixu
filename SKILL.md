@@ -1,6 +1,6 @@
 ---
 name: jixu
-description: One-shot session handoff for Claude Code — 3-question self-check card → 6-step retro → handoff note → ready-to-paste bridge sentence. Invoke when the context is nearly full and you want to start a new session, or when the user says "handoff / continue / new session / summarize / wrap up / lock-and-leave / generate a handoff note / bridge sentence / handoff". No long prompt copy-pasting needed.
+description: One-shot session handoff for Claude Code — 3-question self-check card → 6-step retro → handoff note → ready-to-paste bridge sentence. Invoke when the context is nearly full and you want to start a new session, or when the user says "handoff / new session / wrap up / lock-and-leave / generate a handoff note / bridge sentence". No long prompt copy-pasting needed.
 author: youknowccg
 license: MIT
 ---
@@ -10,7 +10,7 @@ license: MIT
 ## Trigger
 
 - User types `/jixu`
-- User says handoff signals such as "handoff", "continue", "new session", "context is nearly full", "summarize", "wrap up", "lock and leave", "generate a handoff note", "bridge sentence", "handoff", and expects the full handoff flow — proactively suggest it.
+- User says clear handoff signals such as "handoff", "new session", "context is nearly full", "wrap up", "lock and leave", "generate a handoff note", "bridge sentence" — proactively suggest it once. (Generic words like "continue" or "summarize" alone do NOT trigger the full flow — they are too common; ask first.)
 
 ## Orchestration (this skill is an orchestrator, not a standalone flow)
 
@@ -54,15 +54,11 @@ Invoking /jixu counts as a wrap-up scenario; run the full flow from the start �
    - Even information-type questions get crafted options (e.g., a "unsure, leave a TODO" fallback), max 4 options + Other
    - No plain-text questions that make the user type their own answer
 3. **Write the ack flag to reset the reminder** (if the self-check counter hook is configured locally; otherwise skip):
-   - Extract the real sid from the cache file name (do not rely on the possibly-empty `SESSION_ID` environment variable):
+   - Run the bundled helper (it picks the most recent `selfcheck-nudge-*.json` in the cache dir itself, validates the session id, and writes the ack flag; works on Windows and Unix):
      ```
-     ls <CLAUDE_HOME>/cache/selfcheck-nudge-*.json
+     node <SKILL_DIR>/scripts/ack-writer.js
      ```
-     Take the file matching this session / most recently modified (mtime); the UUID in the file name is the sid. Then:
-     ```
-     node -e "require('fs').writeFileSync(process.env.USERPROFILE + '/.claude/cache/selfcheck-ack-' + '<sid>' + '.flag', String(Date.now()))"
-     ```
-     Note: `<CLAUDE_HOME>` is a placeholder replaced with the user's Claude config root; `<sid>` is the real session ID extracted from the file name.
+     Optional: pass an explicit session id as the argument (`node <SKILL_DIR>/scripts/ack-writer.js <sid>`).
    - After writing, read back to verify the flag file exists.
 4. After the user decides, proceed to Step 2.
 
@@ -128,7 +124,7 @@ Note: the retro report must list the per-step status of Steps 1–6 at the end; 
    - Key paths (specific paths of cloud functions / artifacts / scripts, directly findable)
    - Extracted requirement details & user constraints (especially constraints the user emphasized)
 6. **Naming**: `handoff-note_<project/milestone>_<YYYYMMDD>[-suffix_keyword].md` — dates as YYYYMMDD without dashes; if a same-name file already exists for the same project/date, **add a suffix to avoid overwriting**: first `YYYYMMDD.md`, second `YYYYMMDD_b.md` (or `_v2` / `_timeHHMM`, matching directory conventions); `ls` to check for clashes before writing.
-7. **Location**: a `handoff-notes/` folder under the project root (create if missing). Not scattered in the project root, not mixed across projects. If the project has a mirror-copy directory configured (see README deployment notes), sync one copy there as needed.
+7. **Location**: a `handoff-notes/` folder under the project root (create if missing). Not scattered in the project root, not mixed across projects. If the project is a **public git repository**, first add `handoff-notes/` to `.gitignore` or warn the user — handoff notes contain internal constraints and paths that must not be committed publicly. If the project has a mirror-copy directory configured (see README deployment notes), sync one copy there as needed.
 8. After writing, `ls` to confirm the file exists and tell the user the full path.
 
 ## Step 4: Ready-to-Paste Bridge Sentence

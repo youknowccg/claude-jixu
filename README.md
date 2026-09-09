@@ -50,6 +50,8 @@ Install (any of):
 - If you have the source repo of that skill: install to your user skills directory per its README;
 - Or fetch from a community/skill marketplace and place into `~/.claude/skills/<name>/`.
 
+⚠️ Skills placed in `~/.claude/skills/` are loaded and followed by your agent automatically — that is arbitrary instruction execution. **Before installing any third-party skill (from any marketplace), read its SKILL.md in full yourself** and confirm it contains nothing suspicious (unexpected network calls, credential access, writes outside its scope). Prefer sources you can audit over "any marketplace hit".
+
 ### Optional hooks (only take effect when configured locally; auto-skip when absent)
 
 - Retro protocol reminder hook
@@ -70,6 +72,13 @@ Prefer manual? Steps:
 mkdir -p ~/.claude/skills/jixu/scripts
 cp SKILL.md            ~/.claude/skills/jixu/SKILL.md
 cp scripts/check-scripts-manifest.js ~/.claude/skills/jixu/scripts/
+cp scripts/ack-writer.js           ~/.claude/skills/jixu/scripts/
+```
+
+Then replace the placeholders in `~/.claude/skills/jixu/SKILL.md` (`<CLAUDE_HOME>`, `<SKILL_DIR>` → your actual paths — the agent does this automatically in the zero-step install above; manual installs must do it by hand), e.g.:
+
+```bash
+sed -i "s|<SKILL_DIR>|$HOME/.claude/skills/jixu|g; s|<CLAUDE_HOME>|$HOME/.claude|g" ~/.claude/skills/jixu/SKILL.md
 ```
 
 If you use a Claude Code variant, replace `~/.claude` with the matching config directory (e.g. `$HOME/.config/claude`).
@@ -95,12 +104,14 @@ claude-jixu/
 ├── AGENTS.md                         cross-agent auto routing (points to CLAUDE.md)
 ├── README.md
 └── scripts/
-    └── check-scripts-manifest.js     project script manifest validator (bundled, no external deps)
+    ├── check-scripts-manifest.js     project script manifest validator (bundled, no external deps)
+    └── ack-writer.js                 self-check ack flag writer (bundled, no external deps)
 ```
 
 ## Disclaimer
 
 - This repository contains no user privacy data. All local paths, usernames and project names are replaced with placeholders before publishing; replace them with your own environment as described in the placeholder table.
+- **Installing this skill means running its code**: the agent install protocol (`CLAUDE.md`) copies two Node scripts into your skills directory and runs one for verification. Both scripts are stdlib-only (`fs`/`path`, no network, no child processes), but review them yourself before installing — never blind-install skills from anyone.
 - The core flow has been self-tested on the author's machine (including sanitization checks); **cross-environment uniformity has not been fully tested**. If it fails on another environment, please file an issue — the author will follow up.
 
 ## License

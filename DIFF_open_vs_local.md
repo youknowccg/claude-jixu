@@ -12,7 +12,7 @@
 |-----------|---------------|---------------------|
 | **Path style** | Hardcoded local absolute paths (with user dirs, drive letters) | All replaced with **placeholders** such as `<CLAUDE_HOME>`, `<SKILL_DIR>`, `<PROJECT_ROOT>`, `<MEMORY_DIR>`, to be replaced by the installer for their own environment |
 | **Dependency handling** | Assumes private skills and self-check/retro hooks are already deployed locally; hard-calls them | Changed to **dependency detection**: when a dependency is missing, **mentions once** "it is recommended to install XX", then **degrades** to executing the flow framework without interruption |
-| **Internal information** | Contains machine-specific collaboration details and non-public content (internal codenames, collaborators, real business project names) | **All deleted**; only generic, publicly describable flow remains |
+| **Internal information** | Contains machine-specific and non-public details (not disclosed here) | **All deleted**; only generic, publicly describable flow remains |
 | **Maintenance warnings** | Has a "three-part coordinated maintenance" section (state-coupled with self-check/retro hooks; changes must be synced) | Generalized to a "maintenance note" pointing at no concrete local file |
 | **Install entry** | Depends on an existing runtime, no separate install instructions | New `CLAUDE.md` (agent auto-install protocol) + `AGENTS.md` (cross-agent auto routing) — "tell your agent one sentence and it auto-installs" |
 | **Public docs** | No README/LICENSE | New `README.md` (intro, 6-step retro overview, dependency list, zero-step install, placeholder table, disclaimer) and `LICENSE` (MIT) |
@@ -20,7 +20,7 @@
 
 ## Unchanged parts
 
-- **Script** `scripts/check-scripts-manifest.js`: identical on both sides (project script manifest validator, used in jixu Step 5).
+- **Script** `scripts/check-scripts-manifest.js`: kept in sync on both sides (same logic; the public copy carries the security-hardened version — path-traversal gate on manifest rows, cell sanitization, atomic write).
 - **Core flow**: 3-question self-check, 6-step retro (① extract lessons → ② memory consolidation → ③ changelog → ④ config sync → ⑤ tool/script check → ⑥ project closeout), handoff note (Conclusions/Evidence/Checklist), ready-to-paste bridge sentence.
 - **Trigger**: `/jixu` + wrap-up signal words.
 

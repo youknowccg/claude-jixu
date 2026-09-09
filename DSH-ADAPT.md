@@ -56,7 +56,7 @@ Word-triggered actions are themselves executed by the model (DSH has no hook sys
 ## 4. Sanitization and boundaries
 
 - Any cross-agent public content must not contain: internal absolute paths, usernames, internal codenames, port numbers, project codenames.
-- This note's mechanism descriptions all use public generic terms (`@deepseek-ai/dsh-commands`, `createUserMessage`, `followup` etc. are public APIs of open-source packages).
+- This note's mechanism descriptions all use public generic terms (`@deepseek-ai/dsh-commands`, `createUserMessage`, `followup` etc. are public APIs of open-source packages — see the `@deepseek-ai/*` packages published on npm, e.g. `@deepseek-ai/dsh-llm-deepseek`, first published 2026-08-10).
 
 ## 5. Equivalence with CC /jixu
 
