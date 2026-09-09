@@ -66,6 +66,8 @@ If these hooks are not configured, jixu will **mention once** that you are missi
 
 One-liner: tell your agent "install github.com/youknowccg/claude-jixu" or "install this skill". The agent reads `CLAUDE.md` / `AGENTS.md` in the repo and automatically copies files, replaces placeholders, detects dependencies and verifies — no commands needed from you, at most a few permission card confirmations.
 
+> Tip: prefer installing from the **latest release tag** rather than `main` — tags are the reviewed snapshots (the security-hardened version is `v1.0.1`+; versions before it contain a path-traversal issue in the manifest validator, fixed in v1.0.1).
+
 Prefer manual? Steps:
 
 ```bash
@@ -102,6 +104,8 @@ claude-jixu/
 ├── SKILL.md                          flow orchestration (sanitized open-source version)
 ├── CLAUDE.md                         agent auto-install protocol (loaded by Claude Code on entry)
 ├── AGENTS.md                         cross-agent auto routing (points to CLAUDE.md)
+├── DIFF_open_vs_local.md             notes on how the open-source version differs from the author's local one
+├── DSH-ADAPT.md                      notes on adapting the flow to the DeepSeek Harness (DSH)
 ├── README.md
 └── scripts/
     ├── check-scripts-manifest.js     project script manifest validator (bundled, no external deps)
